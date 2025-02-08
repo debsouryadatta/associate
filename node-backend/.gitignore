@@ -1,0 +1,47 @@
+# Build outputs
+dist/
+build/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment variables
+.env
+.env.local
+.env.*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript specific
+*.tsbuildinfo
+*.d.ts
+
+# Testing
+coverage/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Package manager specific
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Temporary files
+*.tmp
+temp/
+
+# WindSurf
+.windsurfrules
