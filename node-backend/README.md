@@ -45,5 +45,5 @@
 10. npx prisma init
 11. Put the DATABASE_URL in the .env file
 12. Add the db schema in the schema.prisma file
-13. npx prisma migrate dev
+13. npx prisma migrate dev --name init
 ```
