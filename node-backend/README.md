@@ -46,4 +46,5 @@
 11. Put the DATABASE_URL in the .env file
 12. Add the db schema in the schema.prisma file
 13. npx prisma migrate dev --name init
+14. After trying with several approaches, finally decided not to deploy the be to vercel. May have issues with prisma and typescript
 ```
