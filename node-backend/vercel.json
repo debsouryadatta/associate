@@ -1,12 +1,1 @@
-{
-    "version": 2,
-    "buildCommand": "npm run build",
-    "outputDirectory": "dist",
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "dist/app.js"
-      }
-    ]
-  }
-  
+{ "version": 2, "rewrites": [{ "source": "/(.*)", "destination": "/api" }] }
