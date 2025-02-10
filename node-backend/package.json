@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "NODE_ENV=dev node --import=tsx --watch src/app.ts",
     "build": "npx prisma generate && tsc",
-    "start": "node dist/app.js"
+    "start": "node dist/app.js",
+    "postinstall": "npx prisma generate",
+    "vercel-build": "npx prisma generate && npm run build"
   },
   "keywords": [],
   "author": "",
