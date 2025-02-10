@@ -2,9 +2,18 @@
     "version": 2,
     "buildCommand": "npm run build",
     "outputDirectory": "dist",
-    "rewrites": [
-      { "source": "/(.*)", "destination": "/dist/app.js" }
+    "builds": [
+      {
+        "src": "dist/app.js",
+        "use": "@vercel/node",
+        "config": { "includeFiles": ["dist/**"] }
+      }
+    ],
+    "routes": [
+      {
+        "src": "/(.*)",
+        "dest": "dist/app.js"
+      }
     ]
   }
-  
   
