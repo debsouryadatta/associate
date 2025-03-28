@@ -1,167 +1,309 @@
-import { useSignIn } from '@clerk/clerk-expo'
-import { Link, useRouter } from 'expo-router'
-import { Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform } from 'react-native'
-import React from 'react'
-import { Ionicons } from '@expo/vector-icons'
-import { StatusBar } from 'expo-status-bar'
-import { LinearGradient } from 'expo-linear-gradient'
-import Toast from 'react-native-toast-message'
+import { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Pressable, Image, Platform } from 'react-native';
+import { Link, router } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+import { ArrowLeft, LogIn, Mail, Lock } from 'lucide-react-native';
 
-export default function SignInScreen() {
-  const { signIn, setActive, isLoaded } = useSignIn()
-  const router = useRouter()
+const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1800&auto=format&fit=crop&q=80';
 
-  const [emailAddress, setEmailAddress] = React.useState('')
-  const [password, setPassword] = React.useState('')
-  const [showPassword, setShowPassword] = React.useState(false)
+export default function SignIn() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const onSignInPress = React.useCallback(async () => {
-    if (!isLoaded) {
-      return
+  const validateForm = () => {
+    if (!email.trim()) {
+      setError('Please enter your email');
+      return false;
     }
+    if (!password.trim()) {
+      setError('Please enter your password');
+      return false;
+    }
+    return true;
+  };
 
+  const handleSignIn = async () => {
     try {
-      const signInAttempt = await signIn.create({
-        identifier: emailAddress,
-        password,
-      })
-
-      if (signInAttempt.status === 'complete') {
-        await setActive({ session: signInAttempt.createdSessionId })
-        router.replace('/')
-      } else {
-        console.error(JSON.stringify(signInAttempt, null, 2))
+      setError(null);
+      
+      if (!validateForm()) {
+        return;
       }
-    } catch (err: any) {
-      console.error(JSON.stringify(err, null, 2))
-    }
-  }, [isLoaded, emailAddress, password])
 
-  const showButtonDisabled = () => {
-    Toast.show({
-      type: 'info',
-      text1: 'Not available yet',
-      text2: 'Try out with email and password',
-      visibilityTime: 3000,
-      autoHide: true,
-    })
-  }
+      setLoading(true);
+      
+      const { error: signInError, data } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim(),
+      });
+
+      if (signInError) {
+        if (signInError.message.includes('Invalid login credentials')) {
+          throw new Error('Invalid email or password');
+        }
+        throw signInError;
+      }
+
+      if (!data.user) {
+        throw new Error('No user data returned');
+      }
+
+      // Get user type from profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('user_type, profile_completed')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) {
+        throw new Error('Failed to fetch user profile');
+      }
+
+      // Redirect based on profile completion and user type
+      if (!profile.profile_completed) {
+        router.replace('/profile');
+      } else if (profile.user_type === 'advisor') {
+        router.replace('/(advisor)');
+      } else {
+        router.replace('/(user)');
+      }
+    } catch (e) {
+      console.error('Sign in error:', e);
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1"
-    >
-      <LinearGradient
-        colors={['#111111', '#111232', '#4B6BFB']}
-        className="flex-1"
-      >
-        <View className="flex-1 px-5">
-          <StatusBar style="light" />
-          
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            className="mt-14 w-9 h-9 rounded-full bg-[#1A1A1A]/50 items-center justify-center"
+    <View style={styles.container}>
+      <Image 
+        source={{ uri: BACKGROUND_IMAGE }}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      <View style={styles.overlay} />
+
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Pressable 
+            style={styles.backButton}
+            onPress={() => router.replace('/')}
           >
-            <Ionicons name="chevron-back" size={20} color="#666666" />
-          </TouchableOpacity>
-
-          <View className="mt-8">
-            <Text className="text-white text-[32px] font-semibold leading-10 tracking-wide">
-              Welcome back
-            </Text>
-            <Text className="text-[#666666] text-base mt-1">
-              Sign in with
-            </Text>
-          </View>
-
-          <View className="flex-row gap-3 mt-6">
-            <TouchableOpacity 
-              onPress={showButtonDisabled}
-              className="flex-1 h-[52px] rounded-xl bg-[#1A1A1A]/50 items-center justify-center flex-row border border-[#333333]"
-            >
-              <View className="w-5 h-5 mr-2">
-                <View className="w-full h-full rounded-full bg-white items-center justify-center">
-                  <Text className="text-[10px] font-bold text-[#DB4437]">G</Text>
-                </View>
-              </View>
-              <Text className="text-white text-[15px]">Google</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={showButtonDisabled}
-              className="flex-1 h-[52px] rounded-xl bg-[#1A1A1A]/50 items-center justify-center flex-row border border-[#333333]"
-            >
-              <View className="w-5 h-5 mr-2">
-                <View className="w-full h-full rounded-full bg-[#4267B2] items-center justify-center">
-                  <Text className="text-[10px] font-bold text-white">f</Text>
-                </View>
-              </View>
-              <Text className="text-white text-[15px]">Facebook</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View className="space-y-5 mt-8">
-            <View>
-              <Text className="text-[#666666] text-[15px] mb-2.5 font-medium">
-                Email
-              </Text>
-              <TextInput
-                className="h-[52px] bg-[#1A1A1A]/50 rounded-xl px-4 text-white border border-[#333333] text-base"
-                placeholder="example@email.com"
-                placeholderTextColor="#666666"
-                value={emailAddress}
-                onChangeText={setEmailAddress}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                style={{ fontWeight: '400' }}
-              />
-            </View>
-
-            <View>
-              <Text className="text-[#666666] text-[15px] mb-2.5 font-medium">
-                Password
-              </Text>
-              <View className="relative">
-                <TextInput
-                  className="h-[52px] bg-[#1A1A1A]/50 rounded-xl px-4 text-white pr-12 border border-[#333333] text-base"
-                  placeholder="••••••••"
-                  placeholderTextColor="#666666"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  style={{ fontWeight: '400' }}
-                />
-                <TouchableOpacity 
-                  onPress={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-3.5"
-                >
-                  <Ionicons 
-                    name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                    size={22} 
-                    color="#666666" 
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            onPress={onSignInPress}
-            className="h-[52px] bg-[#4B6BFB] rounded-xl items-center justify-center mt-8"
-          >
-            <Text className="text-white font-semibold text-base">Sign in</Text>
-          </TouchableOpacity>
-
-          <View className="flex-row justify-center items-center mt-6 space-x-1">
-            <Text className="text-[#666666]">Don't have an account?</Text>
-            <Link href="/sign-up" asChild>
-              <TouchableOpacity>
-                <Text className="text-white font-medium">Sign up</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
+            <ArrowLeft size={24} color="#ffffff" />
+          </Pressable>
+          <Text style={styles.logo}>associate</Text>
         </View>
-      </LinearGradient>
-    </KeyboardAvoidingView>
-  )
+
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.subtitle}>Sign in to your account</Text>
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <View style={styles.inputContainer}>
+            <Mail size={20} color="#666666" style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, loading && styles.inputDisabled]}
+              placeholder="Email"
+              placeholderTextColor="#666666"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setError(null);
+              }}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Lock size={20} color="#666666" style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, loading && styles.inputDisabled]}
+              placeholder="Password"
+              placeholderTextColor="#666666"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                setError(null);
+              }}
+              secureTextEntry
+              autoComplete="current-password"
+              editable={!loading}
+            />
+          </View>
+
+          <Pressable
+            style={[styles.signInButton, loading && styles.buttonDisabled]}
+            onPress={handleSignIn}
+            disabled={loading}
+          >
+            <LogIn size={20} color="#ffffff" style={styles.buttonIcon} />
+            <Text style={styles.signInButtonText}>
+              {loading ? 'Signing in...' : 'Sign In'}
+            </Text>
+          </Pressable>
+
+          <Link href="/sign-up" asChild>
+            <Pressable style={styles.linkButton}>
+              <Text style={styles.linkText}>
+                Don't have an account? <Text style={styles.linkTextBold}>Sign up</Text>
+              </Text>
+            </Pressable>
+          </Link>
+        </View>
+      </View>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  backgroundImage: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    opacity: 0.5,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backdropFilter: 'blur(10px)',
+  },
+  content: {
+    flex: 1,
+    padding: Platform.OS === 'web' ? 40 : 20,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Platform.OS === 'web' ? 40 : 20,
+    marginBottom: 40,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  logo: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: -0.5,
+  },
+  formContainer: {
+    maxWidth: 400,
+    width: '100%',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: Platform.OS === 'web' ? 40 : 24,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666666',
+    marginBottom: 32,
+  },
+  errorContainer: {
+    backgroundColor: '#fff2f2',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  errorText: {
+    color: '#ff3b30',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: 16,
+    color: '#1a1a1a',
+  },
+  inputDisabled: {
+    opacity: 0.7,
+  },
+  signInButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    height: 48,
+    marginTop: 8,
+    shadowColor: '#007AFF',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+    backgroundColor: '#999999',
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
+  signInButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  linkButton: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#666666',
+  },
+  linkTextBold: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+});

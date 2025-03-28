@@ -1,221 +1,380 @@
-import * as React from 'react'
-import { TextInput, TouchableOpacity, View, Text, KeyboardAvoidingView, Platform } from 'react-native'
-import { useSignUp } from '@clerk/clerk-expo'
-import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
-import { StatusBar } from 'expo-status-bar'
-import { LinearGradient } from 'expo-linear-gradient'
-import Toast from 'react-native-toast-message';
+import { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Pressable, Image, Platform } from 'react-native';
+import { Link, router } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+import { ArrowLeft, UserPlus, Mail, Lock, User, Briefcase } from 'lucide-react-native';
 
-export default function SignUpScreen() {
-  const { isLoaded, signUp, setActive } = useSignUp()
-  const router = useRouter()
+const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1800&auto=format&fit=crop&q=80';
 
-  const [username, setUsername] = React.useState('')
-  const [emailAddress, setEmailAddress] = React.useState('')
-  const [password, setPassword] = React.useState('')
-  const [pendingVerification, setPendingVerification] = React.useState(false)
-  const [code, setCode] = React.useState('')
-  const [showPassword, setShowPassword] = React.useState(false)
+type UserType = 'user' | 'advisor';
 
-  const onSignUpPress = async () => {
-    if (!isLoaded) {
-      return
-    }
+export default function SignUp() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [userType, setUserType] = useState<UserType>('user');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const handleSignUp = async () => {
     try {
-      await signUp.create({
-        emailAddress,
-        password,
-      })
-
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
-
-      setPendingVerification(true)
-    } catch (err: any) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
-      console.error(JSON.stringify(err, null, 2))
-    }
-  }
-
-  const onPressVerify = async () => {
-    if (!isLoaded) {
-      return
-    }
-
-    try {
-      const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code,
-      })
-
-      if (completeSignUp.status === 'complete') {
-        await setActive({ session: completeSignUp.createdSessionId })
-        router.replace('/')
-      } else {
-        console.error(JSON.stringify(completeSignUp, null, 2))
+      if (!email || !password) {
+        setError('Please fill in all fields');
+        return;
       }
-    } catch (err: any) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
-      console.error(JSON.stringify(err, null, 2))
-    }
-  }
 
-  const showButtonDisabled = () => {
-    Toast.show({
-      type: 'info',
-      text1: 'Not available yet',
-      text2: 'Try out with email and password',
-      visibilityTime: 3000,
-      autoHide: true,
-    })
-  }
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters long');
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      // Create auth user with metadata
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password.trim(),
+        options: {
+          data: {
+            user_type: userType
+          }
+        }
+      });
+
+      if (signUpError) throw signUpError;
+      if (!authData.user) throw new Error('Signup failed');
+
+      // Update the profile instead of creating a new one
+      // The profile is already created by the database trigger
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          email: email.trim(),
+          user_type: userType,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', authData.user.id);
+
+      if (profileError) {
+        console.error('Profile update error:', profileError);
+        throw new Error('Failed to update profile');
+      }
+
+      // Sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim()
+      });
+
+      if (signInError) throw signInError;
+
+      router.replace('/onboarding');
+    } catch (e) {
+      console.error('Signup error:', e);
+      setError(e.message || 'Failed to create account');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1"
-    >
-      <LinearGradient
-        colors={['#111111', '#111232', '#4B6BFB']}
-        className="flex-1"
-      >
-        <View className="flex-1 px-5">
-          <StatusBar style="light" />
-          
-          {!pendingVerification && (
-            <>
-              <TouchableOpacity 
-                onPress={() => router.back()} 
-                className="mt-14 w-9 h-9 rounded-full bg-[#1A1A1A]/50 items-center justify-center"
-              >
-                <Ionicons name="chevron-back" size={20} color="#666666" />
-              </TouchableOpacity>
+    <View style={styles.container}>
+      <Image 
+        source={{ uri: BACKGROUND_IMAGE }}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      <View style={styles.overlay} />
 
-              <View className="mt-8">
-                <Text className="text-white text-[32px] font-semibold leading-10 tracking-wide">
-                  Create an account
-                </Text>
-                <Text className="text-[#666666] text-base mt-1">
-                  Sign up with
-                </Text>
-              </View>
-
-              <View className="flex-row gap-3 mt-6">
-                <TouchableOpacity 
-                  onPress={showButtonDisabled}
-                  className="flex-1 h-[52px] rounded-xl bg-[#1A1A1A]/50 items-center justify-center flex-row border border-[#333333]"
-                >
-                  <View className="w-5 h-5 mr-2">
-                    <View className="w-full h-full rounded-full bg-white items-center justify-center">
-                      <Text className="text-[10px] font-bold text-[#DB4437]">G</Text>
-                    </View>
-                  </View>
-                  <Text className="text-white text-[15px]">Google</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  onPress={showButtonDisabled}
-                  className="flex-1 h-[52px] rounded-xl bg-[#1A1A1A]/50 items-center justify-center flex-row border border-[#333333]"
-                >
-                  <View className="w-5 h-5 mr-2">
-                    <View className="w-full h-full rounded-full bg-[#4267B2] items-center justify-center">
-                      <Text className="text-[10px] font-bold text-white">f</Text>
-                    </View>
-                  </View>
-                  <Text className="text-white text-[15px]">Facebook</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View className="space-y-5 mt-8">
-                <View>
-                  <Text className="text-[#666666] text-[15px] mb-2.5 font-medium">
-                    Username
-                  </Text>
-                  <TextInput
-                    className="h-[52px] bg-[#1A1A1A]/50 rounded-xl px-4 text-white border border-[#333333] text-base"
-                    placeholder="username"
-                    placeholderTextColor="#666666"
-                    value={username}
-                    onChangeText={setUsername}
-                    autoCapitalize="none"
-                    style={{ fontWeight: '400' }}
-                  />
-                </View>
-
-                <View>
-                  <Text className="text-[#666666] text-[15px] mb-2.5 font-medium">
-                    Email
-                  </Text>
-                  <TextInput
-                    className="h-[52px] bg-[#1A1A1A]/50 rounded-xl px-4 text-white border border-[#333333] text-base"
-                    placeholder="example@email.com"
-                    placeholderTextColor="#666666"
-                    value={emailAddress}
-                    onChangeText={setEmailAddress}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    style={{ fontWeight: '400' }}
-                  />
-                </View>
-
-                <View>
-                  <Text className="text-[#666666] text-[15px] mb-2.5 font-medium">
-                    Password
-                  </Text>
-                  <View className="relative">
-                    <TextInput
-                      className="h-[52px] bg-[#1A1A1A]/50 rounded-xl px-4 text-white pr-12 border border-[#333333] text-base"
-                      placeholder="••••••••"
-                      placeholderTextColor="#666666"
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry={!showPassword}
-                      style={{ fontWeight: '400' }}
-                    />
-                    <TouchableOpacity 
-                      onPress={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-3.5"
-                    >
-                      <Ionicons 
-                        name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                        size={22} 
-                        color="#666666" 
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                onPress={onSignUpPress}
-                className="h-[52px] bg-[#4B6BFB] rounded-xl items-center justify-center mt-8"
-              >
-                <Text className="text-white font-semibold text-base">Register</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {pendingVerification && (
-            <>
-              <TextInput 
-                value={code} 
-                placeholder="Code..." 
-                onChangeText={setCode}
-                className="h-[52px] bg-[#1A1A1A]/50 rounded-xl px-4 text-white border border-[#333333] text-base"
-                placeholderTextColor="#666666"
-                style={{ fontWeight: '400' }}
-              />
-              <TouchableOpacity
-                onPress={onPressVerify}
-                className="h-[52px] bg-[#4B6BFB] rounded-xl items-center justify-center mt-4"
-              >
-                <Text className="text-white font-semibold text-base">Verify Email</Text>
-              </TouchableOpacity>
-            </>
-          )}
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Pressable 
+            style={styles.backButton}
+            onPress={() => router.replace('/')}
+          >
+            <ArrowLeft size={24} color="#ffffff" />
+          </Pressable>
+          <Text style={styles.logo}>associate</Text>
         </View>
-      </LinearGradient>
-    </KeyboardAvoidingView>
-  )
+
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Join our community today</Text>
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <View style={styles.roleSelector}>
+            <Pressable
+              style={[
+                styles.roleButton,
+                userType === 'user' && styles.roleButtonActive,
+                loading && styles.buttonDisabled
+              ]}
+              onPress={() => setUserType('user')}
+              disabled={loading}
+            >
+              <User size={20} color={userType === 'user' ? '#ffffff' : '#666666'} style={styles.roleIcon} />
+              <Text
+                style={[
+                  styles.roleButtonText,
+                  userType === 'user' && styles.roleButtonTextActive,
+                ]}
+              >
+                User
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.roleButton,
+                userType === 'advisor' && styles.roleButtonActive,
+                loading && styles.buttonDisabled
+              ]}
+              onPress={() => setUserType('advisor')}
+              disabled={loading}
+            >
+              <Briefcase size={20} color={userType === 'advisor' ? '#ffffff' : '#666666'} style={styles.roleIcon} />
+              <Text
+                style={[
+                  styles.roleButtonText,
+                  userType === 'advisor' && styles.roleButtonTextActive,
+                ]}
+              >
+                Advisor
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Mail size={20} color="#666666" style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, loading && styles.inputDisabled]}
+              placeholder="Email"
+              placeholderTextColor="#666666"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Lock size={20} color="#666666" style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, loading && styles.inputDisabled]}
+              placeholder="Password"
+              placeholderTextColor="#666666"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="new-password"
+              editable={!loading}
+            />
+          </View>
+
+          <Pressable
+            style={[styles.signUpButton, loading && styles.buttonDisabled]}
+            onPress={handleSignUp}
+            disabled={loading}
+          >
+            <UserPlus size={20} color="#ffffff" style={styles.buttonIcon} />
+            <Text style={styles.signUpButtonText}>
+              {loading ? 'Creating account...' : 'Create Account'}
+            </Text>
+          </Pressable>
+
+          <Link href="/sign-in" asChild>
+            <Pressable style={styles.linkButton}>
+              <Text style={styles.linkText}>
+                Already have an account? <Text style={styles.linkTextBold}>Sign in</Text>
+              </Text>
+            </Pressable>
+          </Link>
+        </View>
+      </View>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  backgroundImage: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    opacity: 0.5,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backdropFilter: 'blur(10px)',
+  },
+  content: {
+    flex: 1,
+    padding: Platform.OS === 'web' ? 40 : 20,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Platform.OS === 'web' ? 40 : 20,
+    marginBottom: 40,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  logo: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: -0.5,
+  },
+  formContainer: {
+    maxWidth: 400,
+    width: '100%',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: Platform.OS === 'web' ? 40 : 24,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666666',
+    marginBottom: 32,
+  },
+  errorContainer: {
+    backgroundColor: '#fff2f2',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  errorText: {
+    color: '#ff3b30',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  cooldownText: {
+    color: '#666666',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  roleSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+  },
+  roleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+  },
+  roleButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  roleIcon: {
+    marginRight: 8,
+  },
+  roleButtonText: {
+    fontSize: 16,
+    color: '#666666',
+  },
+  roleButtonTextActive: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: 16,
+    color: '#1a1a1a',
+  },
+  inputDisabled: {
+    opacity: 0.7,
+  },
+  signUpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    height: 48,
+    marginTop: 8,
+    shadowColor: '#007AFF',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+    backgroundColor: '#999999',
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
+  signUpButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  linkButton: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#666666',
+  },
+  linkTextBold: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+});
