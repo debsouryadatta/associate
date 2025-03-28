@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Image, Platform } from '
 import { useLocalSearchParams, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { ArrowLeft, Award, Star, Clock, MessageCircle, Mail, Briefcase } from 'lucide-react-native';
+import OnlineStatusIndicator from '@/components/OnlineStatusIndicator';
 
 // Default images based on gender
 const DEFAULT_IMAGES = {
@@ -141,9 +142,14 @@ export default function AdvisorProfile() {
         <View style={styles.content}>
           <View style={styles.profileHeader}>
             <View style={styles.nameContainer}>
-              <Text style={styles.advisorName}>
-                {advisor.full_name || `Advisor ${advisor.id.slice(0, 8)}`}
-              </Text>
+              <View style={styles.nameWithStatus}>
+                <Text style={styles.advisorName}>
+                  {advisor.full_name || `Advisor ${advisor.id.slice(0, 8)}`}
+                </Text>
+                <View style={styles.onlineStatus}>
+                  <OnlineStatusIndicator userId={advisor.id} showText size="medium" />
+                </View>
+              </View>
               <View style={styles.badgeContainer}>
                 <Award size={16} color="#007AFF" />
                 <Text style={styles.badgeText}>Expert Advisor</Text>
@@ -214,29 +220,30 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'web' ? 40 : 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 16,
+    backgroundColor: '#f8f9fa',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fa',
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
     marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
   },
   imageContainer: {
-    height: 300,
     position: 'relative',
-    backgroundColor: '#f0f0f0',
+    height: 240,
+    width: '100%',
   },
   advisorImage: {
     width: '100%',
@@ -244,59 +251,55 @@ const styles = StyleSheet.create({
   },
   imageOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   content: {
     padding: 20,
+    paddingTop: 24,
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -24,
+    paddingBottom: 100,
   },
   profileHeader: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    marginTop: -40,
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 24,
   },
   nameContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  nameWithStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   advisorName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    marginRight: 8,
+  },
+  onlineStatus: {
+    marginLeft: 8,
   },
   badgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e8f2ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
   },
   badgeText: {
-    marginLeft: 6,
+    marginLeft: 4,
     fontSize: 14,
-    fontWeight: '500',
     color: '#007AFF',
+    fontWeight: '500',
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderTopColor: '#f1f1f1',
-    paddingTop: 20,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
   },
   statItem: {
     alignItems: 'center',
-    flex: 1,
   },
   statLabel: {
     fontSize: 12,
@@ -304,27 +307,22 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#1a1a1a',
     marginTop: 2,
   },
   section: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 16,
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
     marginBottom: 12,
   },
   bioText: {
     fontSize: 16,
-    color: '#666',
     lineHeight: 24,
+    color: '#333',
   },
   contactItem: {
     flexDirection: 'row',
@@ -333,35 +331,35 @@ const styles = StyleSheet.create({
   },
   contactText: {
     fontSize: 16,
-    color: '#666',
     marginLeft: 12,
+    color: '#333',
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#ffffff',
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f1f1f1',
-    padding: 20,
-    paddingBottom: Platform.OS === 'web' ? 20 : 36,
+    borderTopColor: '#eee',
   },
   chatButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
     padding: 16,
     shadowColor: '#007AFF',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
   chatButtonText: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
@@ -369,7 +367,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
   },
   loadingText: {
     fontSize: 16,
@@ -379,12 +376,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
     padding: 20,
   },
   errorText: {
     fontSize: 16,
-    color: '#ff3b30',
+    color: '#e53935',
     textAlign: 'center',
   },
 });

@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    backdropFilter: 'blur(10px)',
+    // backdropFilter: 'blur(10px)', // backdropFilter is not supported in React Native
   },
   content: {
     flex: 1,

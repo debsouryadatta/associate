@@ -135,6 +135,38 @@ export type Database = {
         }
         Relationships: []
       }
+      user_status: {
+        Row: {
+          domain: string | null
+          id: string
+          is_online: boolean | null
+          last_active: string | null
+          user_type: string
+        }
+        Insert: {
+          domain?: string | null
+          id: string
+          is_online?: boolean | null
+          last_active?: string | null
+          user_type: string
+        }
+        Update: {
+          domain?: string | null
+          id?: string
+          is_online?: boolean | null
+          last_active?: string | null
+          user_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_status_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Image, TextInput, Refres
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Search, Award, Star, Clock, ChevronRight, Users } from 'lucide-react-native';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import OnlineAdvisorsList from '@/components/OnlineAdvisorsList';
 
 const HERO_IMAGE = 'https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?w=1800&auto=format&fit=crop&q=80';
 
@@ -36,6 +38,22 @@ export default function UserHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Fetch current user session
+  useEffect(() => {
+    const fetchSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        setUserId(data.session.user.id);
+      }
+    };
+    
+    fetchSession();
+  }, []);
+
+  // Track user's online status
+  useOnlineStatus(userId || '', 'user');
 
   const fetchAdvisors = async () => {
     try {
@@ -131,6 +149,9 @@ export default function UserHome() {
           <Text style={styles.heroSubtitle}>Connect with professional advisors in your field</Text>
         </View>
       </View>
+
+      {/* Online Advisors Section */}
+      <OnlineAdvisorsList domain={selectedDomain} />
 
       <View style={styles.searchSection}>
         <View style={styles.domainTabs}>

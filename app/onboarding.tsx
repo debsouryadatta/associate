@@ -124,7 +124,7 @@ export default function ProfileScreen() {
       } else {
         router.replace('/(user)');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error saving profile:', e);
       setError(e.message);
     } finally {
