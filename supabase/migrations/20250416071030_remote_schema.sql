@@ -155,12 +155,24 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "years_of_experience" integer,
     "profile_completed" boolean DEFAULT false,
     "image_url" "text",
-    "gender" "public"."gender_type",
-    "demo" "text"
+    "gender" "public"."gender_type"
 );
 
 
 ALTER TABLE "public"."profiles" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."user_status" (
+    "id" "uuid" NOT NULL,
+    "user_type" "text" NOT NULL,
+    "is_online" boolean DEFAULT false,
+    "last_active" timestamp with time zone DEFAULT "now"(),
+    "domain" "text",
+    CONSTRAINT "user_status_user_type_check" CHECK (("user_type" = ANY (ARRAY['user'::"text", 'advisor'::"text"])))
+);
+
+
+ALTER TABLE "public"."user_status" OWNER TO "postgres";
 
 
 ALTER TABLE ONLY "public"."chats"
@@ -180,6 +192,23 @@ ALTER TABLE ONLY "public"."messages"
 
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_status"
+    ADD CONSTRAINT "user_status_pkey" PRIMARY KEY ("id");
+
+
+
+CREATE INDEX "user_status_domain_idx" ON "public"."user_status" USING "btree" ("domain");
+
+
+
+CREATE INDEX "user_status_online_idx" ON "public"."user_status" USING "btree" ("is_online");
+
+
+
+CREATE INDEX "user_status_type_idx" ON "public"."user_status" USING "btree" ("user_type");
 
 
 
@@ -209,6 +238,11 @@ ALTER TABLE ONLY "public"."messages"
 
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_status"
+    ADD CONSTRAINT "user_status_id_fkey" FOREIGN KEY ("id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
 
 
 
@@ -475,6 +509,12 @@ GRANT ALL ON TABLE "public"."messages" TO "service_role";
 GRANT ALL ON TABLE "public"."profiles" TO "anon";
 GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."profiles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."user_status" TO "anon";
+GRANT ALL ON TABLE "public"."user_status" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_status" TO "service_role";
 
 
 
