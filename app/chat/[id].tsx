@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +27,9 @@ interface ChatParticipant {
   gender: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
 }
 
+// Polling interval in milliseconds
+const POLLING_INTERVAL = 5000; // 5 seconds for initial testing
+
 export default function ChatScreen() {
   const { id: chatId } = useLocalSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -36,6 +39,8 @@ export default function ChatScreen() {
   const [participant, setParticipant] = useState<ChatParticipant | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastMessageIdRef = useRef<string | null>(null);
 
   const getParticipantImage = (participant: ChatParticipant) => {
     if (participant.image_url) return participant.image_url;
@@ -44,34 +49,45 @@ export default function ChatScreen() {
     return DEFAULT_IMAGES.default;
   };
 
-  const fetchMessages = async () => {
+  // Function to fetch messages - made reusable for initial load and polling
+  const fetchMessages = useCallback(async (isInitialLoad = false) => {
     try {
-      setError(null);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      setCurrentUser(user.id);
+      if (isInitialLoad) {
+        setError(null);
+        setLoading(true);
+      }
+      
+      // Get current user
+      if (!currentUser) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+        setCurrentUser(user.id);
+      }
 
-      // Fetch chat details
-      const { data: chatData, error: chatError } = await supabase
-        .from('chats')
-        .select('user_id, advisor_id')
-        .eq('id', chatId)
-        .single();
+      // If it's initial load, fetch chat participant details
+      if (isInitialLoad) {
+        // Fetch chat details
+        const { data: chatData, error: chatError } = await supabase
+          .from('chats')
+          .select('user_id, advisor_id')
+          .eq('id', chatId)
+          .single();
 
-      if (chatError) throw chatError;
+        if (chatError) throw chatError;
 
-      // Set the other participant's ID
-      const otherParticipantId = chatData.user_id === user.id ? chatData.advisor_id : chatData.user_id;
+        // Set the other participant's ID
+        const otherParticipantId = chatData.user_id === currentUser ? chatData.advisor_id : chatData.user_id;
 
-      // Fetch participant details
-      const { data: participantData, error: participantError } = await supabase
-        .from('profiles')
-        .select('id, user_type, full_name, image_url, gender')
-        .eq('id', otherParticipantId)
-        .single();
+        // Fetch participant details
+        const { data: participantData, error: participantError } = await supabase
+          .from('profiles')
+          .select('id, user_type, full_name, image_url, gender')
+          .eq('id', otherParticipantId)
+          .single();
 
-      if (participantError) throw participantError;
-      setParticipant(participantData);
+        if (participantError) throw participantError;
+        setParticipant(participantData);
+      }
 
       // Fetch messages
       const { data: messagesData, error: messagesError } = await supabase
@@ -81,12 +97,17 @@ export default function ChatScreen() {
         .order('created_at', { ascending: true });
 
       if (messagesError) throw messagesError;
-      setMessages(messagesData || []);
-
-      // Mark messages as read
+      
       if (messagesData && messagesData.length > 0) {
+        // Update last message ID for reference
+        lastMessageIdRef.current = messagesData[messagesData.length - 1].id;
+        
+        // Set messages
+        setMessages(messagesData);
+        
+        // Mark unread messages as read
         const unreadMessages = messagesData.filter(
-          msg => msg.sender_id !== user.id && !msg.read_at
+          msg => msg.sender_id !== currentUser && !msg.read_at
         );
 
         if (unreadMessages.length > 0) {
@@ -95,79 +116,104 @@ export default function ChatScreen() {
             .update({ read_at: new Date().toISOString() })
             .in('id', unreadMessages.map(msg => msg.id));
         }
+        
+        // Scroll to bottom if there are new messages
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
       }
     } catch (e) {
       console.error('Error fetching messages:', e);
-      setError('Failed to load messages. Please try again.');
+      if (isInitialLoad) {
+        setError('Failed to load messages. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
-  };
-
-  useEffect(() => {
-    fetchMessages();
-
-    // Subscribe to new messages
-    const channel = supabase
-      .channel('chat_messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `chat_id=eq.${chatId}`
-        },
-        async (payload) => {
-          const newMessage = payload.new as Message;
-          
-          // Mark message as read if it's from the other participant
-          if (currentUser && newMessage.sender_id !== currentUser) {
-            await supabase
-              .from('messages')
-              .update({ read_at: new Date().toISOString() })
-              .eq('id', newMessage.id);
-          }
-
-          setMessages(current => [...current, newMessage]);
-          
-          // Scroll to bottom
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
   }, [chatId, currentUser]);
+
+  // Set up initial load and polling
+  useEffect(() => {
+    // Initial fetch
+    fetchMessages(true);
+    
+    // Set up polling
+    pollingIntervalRef.current = setInterval(() => {
+      console.log('Polling for new messages...');
+      fetchMessages(false);
+    }, POLLING_INTERVAL);
+    
+    // Clean up on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [fetchMessages]);
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
     try {
+      // Store message content
+      const messageContent = newMessage.trim();
+      
+      // Clear input field immediately for better UX
+      setNewMessage('');
+      
+      console.log('Sending message:', messageContent);
+      
+      // Create optimistic message for UI
+      const tempId = `temp-${Date.now()}`;
+      const optimisticMessage = {
+        id: tempId,
+        content: messageContent,
+        sender_id: currentUser || '',
+        created_at: new Date().toISOString(),
+        read_at: null
+      };
+      
+      // Add message to UI immediately
+      setMessages(current => [...current, optimisticMessage]);
+      
+      // Scroll to bottom
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+      
+      // Send to server
       const { data, error: sendError } = await supabase
         .from('messages')
         .insert({
           chat_id: chatId,
-          content: newMessage.trim(),
+          content: messageContent,
           sender_id: currentUser
         })
         .select()
         .single();
-
-      if (sendError) throw sendError;
-
-      // Optimistically add the message to the UI
+        
+      if (sendError) {
+        console.error('Error sending message:', sendError);
+        throw sendError;
+      }
+      
+      console.log('Message sent successfully:', data);
+      
+      // Replace optimistic message with real one
       if (data) {
-        setMessages(current => [...current, data]);
-        setNewMessage('');
-        // Scroll to bottom
+        setMessages(current => 
+          current.map(msg => msg.id === tempId ? data : msg)
+        );
+        
+        // Update last message ID
+        lastMessageIdRef.current = data.id;
+        
+        // Trigger an immediate fetch to ensure other clients see this message
         setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+          fetchMessages(false);
+        }, 500);
       }
     } catch (e) {
       console.error('Error sending message:', e);

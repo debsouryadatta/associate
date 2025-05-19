@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
@@ -221,6 +221,3 @@ export function useOnlineAdvisors(domain: string) {
   
   return { advisors, loading };
 }
-
-// Import useState for the hooks that need it
-import { useState } from 'react';

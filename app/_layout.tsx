@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 export default function RootLayout() {
   useFrameworkReady();
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     // Check initial session and route accordingly
@@ -42,15 +43,15 @@ export default function RootLayout() {
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-        window.location.href = '/sign-in';
+      if (event === 'SIGNED_OUT') {
+        router.replace('/sign-in');
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   if (loading) {
     return (

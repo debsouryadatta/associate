@@ -72,16 +72,6 @@ export default function AdvisorDashboard() {
       <View style={styles.header}>
         <Text style={styles.title}>Advisor Dashboard</Text>
         <Text style={styles.subtitle}>Manage your clients and appointments</Text>
-        
-        {/* Online status indicator */}
-        {userId && (
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusLabel}>Your status:</Text>
-            <View style={styles.statusIndicator}>
-              <OnlineStatusIndicator userId={userId} showText size="medium" />
-            </View>
-          </View>
-        )}
       </View>
       
       <View style={styles.infoCard}>
